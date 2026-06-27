@@ -1,0 +1,47 @@
+pipeline {
+  agent any
+  environment {
+    SONAR_HOST_URL = 'https://your-sonarqube-server'
+    SONAR_AUTH_TOKEN = credentials('sonar-token')
+  }
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+    stage('Install') {
+      steps {
+        sh 'npm install'
+      }
+    }
+    stage('Build') {
+      steps {
+        sh 'npm run build'
+      }
+    }
+    stage('Test') {
+      steps {
+        sh 'CI=true npm test -- --coverage --watchAll=false'
+      }
+    }
+    stage('SonarQube analysis') {
+      steps {
+        withSonarQubeEnv('SonarQube') {
+          sh 'npx sonar-scanner -Dsonar.login=$SONAR_AUTH_TOKEN'
+        }
+      }
+    }
+    stage('Archive') {
+      steps {
+        archiveArtifacts artifacts: 'build/**', allowEmptyArchive: true
+      }
+    }
+  }
+  post {
+    always {
+      junit '**/TEST-*.xml'
+      publishHTML(target: [reportDir: 'coverage', reportFiles: 'lcov-report/index.html', reportName: 'Coverage Report', keepAll: true])
+    }
+  }
+}
